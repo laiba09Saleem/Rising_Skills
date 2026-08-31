@@ -38,9 +38,12 @@ class Settings(BaseSettings):
     SUPABASE_SERVICE_ROLE_KEY: str = "your-supabase-service-role-key"
     SUPABASE_JWT_SECRET: str = "your-supabase-jwt-secret"
 
-    # AI Configuration (MVP with Gemini)
-    GEMINI_API_KEY: str | None = None
-    GEMINI_MODEL: str = "gemini-1.5-flash"
+    # AI Configuration (Groq LPU Inference)
+    GROQ_API_KEY: str | None = None
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+    GROQ_TEMPERATURE: float = 0.2
+    GROQ_MAX_TOKENS: int = 2048
+    GROQ_TIMEOUT_SECONDS: int = 30
 
     # Algorithm Weights for Deterministic Matching (v1)
     MATCH_WEIGHT_SKILL_FIT: float = 0.50

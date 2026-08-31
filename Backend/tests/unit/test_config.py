@@ -10,6 +10,10 @@ def test_settings_default_values():
     )
     assert settings.APP_NAME == "Rising Skills Backend"
     assert settings.API_V1_PREFIX == "/api/v1"
+    assert settings.GROQ_MODEL == "llama-3.3-70b-versatile"
+    assert settings.GROQ_TEMPERATURE == 0.2
+    assert settings.GROQ_MAX_TOKENS == 2048
+    assert settings.GROQ_TIMEOUT_SECONDS == 30
     assert settings.MATCH_WEIGHT_SKILL_FIT == 0.50
     assert settings.MATCH_WEIGHT_EVIDENCE_STRENGTH == 0.30
     assert settings.MATCH_WEIGHT_EXPERIENCE == 0.20

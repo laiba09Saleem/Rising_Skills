@@ -9,7 +9,7 @@ The backend is built as a **Modular Monolith** with strict layered separation:
 - **Dependencies (`app/dependencies/`)**: Supabase JWT authentication, RBAC authorization guards, DB session injection.
 - **Services (`app/services/`)**: Core domain rules, assessment scoring, deterministic matching.
 - **Repositories (`app/repositories/`)**: Data-access contracts isolating database operations.
-- **Integrations (`app/integrations/`)**: Supabase GoTrue Auth, Google Gemini AI (Pydantic validated).
+- **Integrations (`app/integrations/`)**: Supabase GoTrue Auth, Groq AI (Pydantic validated).
 
 ## Local Development Setup
 

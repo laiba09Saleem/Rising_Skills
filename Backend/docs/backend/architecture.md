@@ -52,7 +52,7 @@ The system is strictly designed as a **Modular Monolith** to maximize developer 
                                 ▼                   ▼
                         Repository Layer     AI Integration Layer
                       ├── Data Access       ├── AIProvider Interface
-                      ├── Query Scoping     ├── Google Gemini Client
+                      ├── Query Scoping     ├── Groq Client
                       └── Transaction Mgmt  └── Strict Pydantic Parser
                                 │
                                 ▼
