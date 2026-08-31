@@ -31,7 +31,9 @@ if db_url.startswith("postgresql://"):
 else:
     async_db_url = db_url
 
-config.set_main_option("sqlalchemy.url", async_db_url)
+# Configparser requires escaping '%' as '%%' to avoid interpolation errors
+# when DATABASE_URL contains URL-encoded characters (e.g. %40, %23 in passwords).
+config.set_main_option("sqlalchemy.url", async_db_url.replace("%", "%%"))
 
 
 def run_migrations_offline() -> None:
