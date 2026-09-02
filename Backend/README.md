@@ -44,3 +44,28 @@ The backend is built as a **Modular Monolith** with strict layered separation:
    ```bash
    pytest
    ```
+
+## Docker Deployment
+
+Build and run the backend from the `Backend` directory:
+
+```bash
+docker build -t rising-skills-backend .
+docker run --env-file .env -p 8000:8000 rising-skills-backend
+```
+
+The container listens on the platform-provided `PORT` value and falls back to
+`8000` locally. The health check is available at `/health`.
+
+### Render
+
+The repository includes `../render.yaml`. In Render, choose **Blueprint** and
+connect this repository. Add the secret environment variables requested by the
+manifest, then run the database migrations once:
+
+```bash
+alembic upgrade head
+```
+
+Use the same `DIRECT_DATABASE_URL` and `DATABASE_URL` values as the deployed
+service when running migrations.
