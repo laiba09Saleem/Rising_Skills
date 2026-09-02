@@ -1,3 +1,12 @@
+---
+title: Rising Skills Backend
+emoji: 🚀
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_port: 7860
+---
+
 # Rising Skills — Backend
 
 Production-grade FastAPI backend for **Rising Skills** — A Skills-to-Opportunity platform.
@@ -51,15 +60,29 @@ Build and run the backend from the `Backend` directory:
 
 ```bash
 docker build -t rising-skills-backend .
-docker run --env-file .env -p 8000:8000 rising-skills-backend
+docker run --env-file .env -p 7860:7860 rising-skills-backend
 ```
 
 The container listens on the platform-provided `PORT` value and falls back to
-`8000` locally. The health check is available at `/health`.
+`7860` for Hugging Face Spaces. The health check is available at `/health`.
+
+### Vercel Testing
+
+For a card-free test deployment, create a Vercel project with `Backend` as the
+project root. Vercel uses `api/index.py` and `vercel.json` to expose this
+FastAPI application. Add the same Supabase environment variables listed above,
+then deploy with:
+
+```bash
+npx vercel --prod
+```
+
+Test the deployed API at `/health` and `/api/v1/health`.
 
 ### Render
 
-The repository includes `../render.yaml`. In Render, choose **Blueprint** and
+The repository includes `../render.yaml`, configured to deploy the `Backend`
+branch on Render's **Free** web service. In Render, choose **Blueprint** and
 connect this repository. Add the secret environment variables requested by the
 manifest, then run the database migrations once:
 
