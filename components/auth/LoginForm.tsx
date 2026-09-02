@@ -17,13 +17,28 @@ export default function LoginPage() {
     password: "",
   });
 
+  // const handleSubmit = (e: React.FormEvent) => {
+  //   e.preventDefault();
+
+  //   // Backend login API yahan connect hogi
+  //   console.log("Login Data:", formData);
+
+  //   // Demo flow
+  //   router.push("/dashboard");
+  // };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
-    // Backend login API yahan connect hogi
-    console.log("Login Data:", formData);
-
-    // Demo flow
+  
+    const email = formData.email.trim().toLowerCase();
+  
+    // Employer demo login
+    if (email.endsWith("@ran.com")) {
+      router.push("/employer/dashboard");
+      return;
+    }
+  
+    // Student demo login
     router.push("/dashboard");
   };
 
