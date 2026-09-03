@@ -29,7 +29,7 @@ export default function DashboardPage() {
         const evidence = evidenceRes.items;
         const matchItems = matchesRes.items;
 
-        setSkills(evidence.filter((e) => e.status === "verified"));
+        setSkills(evidence);
         setMatches(matchItems);
         setOpportunitiesCount(matchItems.length);
 

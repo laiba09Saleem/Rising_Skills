@@ -450,7 +450,7 @@ export interface EvaluationPublic {
   created_at: string;
 }
 
-export type EvidenceSourceType = "assessment" | "challenge_submission";
+export type EvidenceSourceType = "assessment" | "challenge_submission" | "self_reported";
 export type EvidenceStatus = "unverified" | "pending" | "verified" | "rejected";
 
 export interface EvidencePublic {
@@ -884,6 +884,15 @@ export const api = {
       }),
     get: (id: string, token?: string | null) =>
       request<EvidencePublic>(`/api/v1/evidence/${id}`, { token }),
+    selfReport: (
+      data: { skill_id: string; proficiency?: string | null; notes?: string | null },
+      token?: string | null,
+    ) =>
+      request<EvidencePublic>("/api/v1/evidence/self-report", {
+        method: "POST",
+        body: data,
+        token,
+      }),
   },
 
   // --- Verifications ------------------------------------------------------

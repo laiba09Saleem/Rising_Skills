@@ -2,12 +2,13 @@
 
 import { X } from "lucide-react";
 import { useState } from "react";
+import type { SkillResponse } from "@/lib/api";
 
 interface AddSkillModalProps {
   onClose: () => void;
+  skills: SkillResponse[];
   onAdd: (skill: {
-    name: string;
-    category: string;
+    skill_id: string;
     proficiency: string;
     description: string;
   }) => void;
@@ -15,12 +16,10 @@ interface AddSkillModalProps {
 
 export default function AddSkillModal({
   onClose,
+  skills,
   onAdd,
 }: AddSkillModalProps) {
-  const [name, setName] = useState("");
-  const [category, setCategory] = useState(
-    "Frontend Development"
-  );
+  const [skillId, setSkillId] = useState("");
   const [proficiency, setProficiency] =
     useState("Beginner");
   const [description, setDescription] = useState("");
@@ -28,13 +27,12 @@ export default function AddSkillModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!name.trim()) {
+    if (!skillId) {
       return;
     }
 
     onAdd({
-      name,
-      category,
+      skill_id: skillId,
       proficiency,
       description,
     });
@@ -50,7 +48,7 @@ export default function AddSkillModal({
             </h2>
 
             <p className="mt-1 text-xs text-slate-500">
-              Add a skill as a self-reported claim.
+              Add a skill to your profile as a self-reported claim.
             </p>
           </div>
 
@@ -71,28 +69,17 @@ export default function AddSkillModal({
               Skill
             </label>
 
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. React.js"
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-indigo-500"
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-slate-700">
-              Category
-            </label>
-
             <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
+              value={skillId}
+              onChange={(e) => setSkillId(e.target.value)}
               className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-indigo-500"
             >
-              <option>Frontend Development</option>
-              <option>Backend Development</option>
-              <option>Database</option>
-              <option>Testing</option>
+              <option value="">Select a skill</option>
+              {skills.map((skill) => (
+                <option key={skill.id} value={skill.id}>
+                  {skill.name}
+                </option>
+              ))}
             </select>
           </div>
 

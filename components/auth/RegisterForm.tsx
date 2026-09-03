@@ -54,6 +54,8 @@ export default function RegisterPage() {
       });
       if (result.requiresConfirmation) {
         router.push("/login");
+      } else if (role === "employer") {
+        router.push("/employers/dashboard");
       } else {
         router.push("/dashboard");
       }

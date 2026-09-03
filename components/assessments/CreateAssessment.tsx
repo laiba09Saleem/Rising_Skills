@@ -126,7 +126,9 @@ export default function CreateAssessment({ onClose }: CreateAssessmentProps) {
           question_text: q.text,
           question_type: q.type === "Multiple Choice" ? "multiple_choice" : q.type === "True / False" ? "true_false" : "single_choice",
           options: q.options ? q.options.map((opt, idx) => ({ id: String.fromCharCode(97 + idx), text: opt })) : [],
-          correct_answer: q.correctAnswer || "a",
+          correct_answer: q.correctAnswer
+            ? String.fromCharCode(97 + Math.min(Number(q.correctAnswer), (q.options?.length ?? 4) - 1))
+            : "a",
           points: 10,
           display_order: index + 1,
         }))}
@@ -143,13 +145,18 @@ export default function CreateAssessment({ onClose }: CreateAssessmentProps) {
   const handleAddCustomQuestion = () => {
     if (!newQuestion.text.trim() || !newQuestion.skill) return;
 
+    const isTrueFalse = newQuestion.type === "True / False";
     const question: Question = {
       id: `Q-${Date.now()}`,
       text: newQuestion.text,
       type: newQuestion.type,
       skill: newQuestion.skill,
       difficulty: newQuestion.difficulty,
-      options: newQuestion.type === "Multiple Choice" ? newQuestion.options.filter(Boolean) : undefined,
+      options: isTrueFalse
+        ? ["True", "False"]
+        : newQuestion.type === "Multiple Choice"
+          ? newQuestion.options.filter(Boolean)
+          : undefined,
       correctAnswer: newQuestion.correctAnswer,
     };
 
@@ -367,6 +374,22 @@ export default function CreateAssessment({ onClose }: CreateAssessmentProps) {
                 </div>
               </div>
 
+              {newQuestion.type === "True / False" && (
+                <div>
+                  <label className="text-sm font-medium text-[#333] block mb-1.5">
+                    Correct Answer
+                  </label>
+                  <select
+                    value={newQuestion.correctAnswer}
+                    onChange={(e) => setNewQuestion({ ...newQuestion, correctAnswer: e.target.value })}
+                    className="w-full border border-[#DDD] rounded-lg px-3 py-2.5 text-sm"
+                  >
+                    <option value="0">True</option>
+                    <option value="1">False</option>
+                  </select>
+                </div>
+              )}
+
               {newQuestion.type === "Multiple Choice" && (
                 <div>
                   <label className="text-sm font-medium text-[#333] block mb-1.5">
@@ -551,7 +574,8 @@ function StepSelectQuestions({
   customQuestions: Question[];
   onAddQuestion: () => void;
 }) {
-  
+  const allQuestions = [...mockBankQuestions, ...customQuestions];
+
 
   return (
     <div>
@@ -717,7 +741,8 @@ function StepReview({
   selectedQuestions: string[];
   customQuestions: Question[];
 }) {
-  
+
+  const allQuestions = [...mockBankQuestions, ...customQuestions];
   const selected = allQuestions.filter((q) =>
     selectedQuestions.includes(q.id)
   );

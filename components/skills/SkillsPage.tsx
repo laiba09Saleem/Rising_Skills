@@ -22,6 +22,7 @@ import EditSkillModal from "./EditSkillModal";
 import SkillDetailsModal from "./SkillDetailsModal";
 import { api, type SkillResponse } from "@/lib/api";
 import { useFetch } from "@/lib/useFetch";
+import { useAuth } from "@/lib/auth-context";
 import { LoadingState, ErrorState } from "@/components/ui/states";
 
 function mapSkill(s: SkillResponse): Skill {
@@ -44,12 +45,15 @@ function mapSkill(s: SkillResponse): Skill {
 }
 
 export default function SkillsPage() {
+  const { token } = useAuth();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
   const [state, setState] = useState("All");
   const [showAdd, setShowAdd] = useState(false);
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
   const [editingSkill, setEditingSkill] = useState<Skill | null>(null);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [addSuccess, setAddSuccess] = useState(false);
 
   const fetcher = useMemo(
     () => () =>
@@ -88,22 +92,31 @@ export default function SkillsPage() {
   const assessedCount = skills.filter((s) => s.state === "Assessed").length;
 
   const handleAddSkill = async (data: {
-    name: string;
-    category: string;
+    skill_id: string;
     proficiency: string;
     description: string;
   }) => {
+    setAddError(null);
+    if (!token) {
+      setAddError("Please sign in to add a skill to your profile.");
+      return;
+    }
     try {
-      await api.skills.create(
+      await api.evidence.selfReport(
         {
-          name: data.name,
-          category: data.category,
-          parent_skill_id: null,
+          skill_id: data.skill_id,
+          proficiency: data.proficiency,
+          notes: data.description || null,
         },
+        token,
       );
       setShowAdd(false);
+      setAddSuccess(true);
+      setTimeout(() => setAddSuccess(false), 4000);
       refetch();
     } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to add skill";
+      setAddError(msg);
       console.error("Failed to add skill:", err);
     }
   };
@@ -138,13 +151,27 @@ export default function SkillsPage() {
             </p>
           </div>
           <button
-            onClick={() => setShowAdd(true)}
+            onClick={() => {
+              setAddError(null);
+              setShowAdd(true);
+            }}
             className="flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
           >
             <Plus size={18} />
             Add Skill
           </button>
         </div>
+
+        {addSuccess && (
+          <div className="mt-4 rounded-xl bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
+            Skill added to your profile! View it on your <a href="/dashboard/profile" className="font-semibold underline">profile page</a>.
+          </div>
+        )}
+        {addError && (
+          <div className="mt-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+            {addError}
+          </div>
+        )}
 
         {/* Stats */}
         <div className="mt-8 grid gap-4 md:grid-cols-4">
@@ -237,6 +264,7 @@ export default function SkillsPage() {
         <AddSkillModal
           onClose={() => setShowAdd(false)}
           onAdd={handleAddSkill}
+          skills={data?.items || []}
         />
       )}
 

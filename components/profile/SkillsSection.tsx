@@ -72,13 +72,13 @@ export default function SkillsSection() {
         </div>
       ) : skills.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center">
-          <p className="text-sm text-slate-500 mb-4">No skills verified yet.</p>
-          <p className="text-xs text-slate-400">Skills are added by completing assessments and challenges.</p>
+          <p className="text-sm text-slate-500 mb-4">No skills added yet.</p>
+          <p className="text-xs text-slate-400">Add skills from the Skills page, or by completing assessments and challenges.</p>
           <Link
             href="/dashboard/skills"
             className="inline-block mt-4 text-sm font-medium text-indigo-600 hover:text-indigo-700"
           >
-            View Available Skills
+            Browse & Add Skills
           </Link>
         </div>
       ) : (
