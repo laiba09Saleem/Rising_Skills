@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { Plus, Search, X } from "lucide-react";
+import { useState, useEffect } from "react";
+
+
+import { Plus, Search, X, Loader2 } from "lucide-react";
+import { api, type SkillResponse } from "@/lib/api";
 
 interface Question {
   id: string;
@@ -13,59 +16,26 @@ interface Question {
   createdDate: string;
 }
 
-const mockQuestions: Question[] = [
-  {
-    id: "Q-001",
-    text: "What is the purpose of the useEffect hook in React?",
-    type: "Multiple Choice",
-    skill: "React.js",
-    difficulty: "Medium",
-    status: "Active",
-    createdDate: "2026-07-10",
-  },
-  {
-    id: "Q-002",
-    text: "JavaScript is a statically typed language.",
-    type: "True / False",
-    skill: "JavaScript",
-    difficulty: "Easy",
-    status: "Active",
-    createdDate: "2026-07-12",
-  },
-  {
-    id: "Q-003",
-    text: "Explain the difference between let, const, and var.",
-    type: "Short Answer",
-    skill: "JavaScript",
-    difficulty: "Medium",
-    status: "Active",
-    createdDate: "2026-07-15",
-  },
-  {
-    id: "Q-004",
-    text: "Which method is used to update state in a functional component?",
-    type: "Multiple Choice",
-    skill: "React.js",
-    difficulty: "Easy",
-    status: "Active",
-    createdDate: "2026-07-18",
-  },
-  {
-    id: "Q-005",
-    text: "CSS Grid and Flexbox serve the exact same purpose.",
-    type: "True / False",
-    skill: "UI Development",
-    difficulty: "Easy",
-    status: "Retired",
-    createdDate: "2026-06-20",
-  },
-];
+const mockQuestions: Question[] = [];
 
 export default function QuestionBank() {
+  const [skills, setSkills] = useState<SkillResponse[]>([]);
+  const [loadingSkills, setLoadingSkills] = useState(true);
   const [search, setSearch] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [retireTarget, setRetireTarget] = useState<Question | null>(null);
   const [questions, setQuestions] = useState(mockQuestions);
+
+  useEffect(() => {
+    api.skills.list({ page_size: 100 })
+      .then((res) => {
+        setSkills(res.items);
+      })
+      .catch((err) => {
+        console.error("Failed to load skills:", err);
+      })
+      .finally(() => setLoadingSkills(false));
+  }, []);
 
   const filtered = questions.filter(
     (q) =>
@@ -152,10 +122,10 @@ export default function QuestionBank() {
             ❓
           </div>
           <h3 className="text-base font-semibold text-[#222] mt-4">
-            No questions found
+            No questions in bank
           </h3>
           <p className="text-sm text-[#999] mt-1">
-            Add your first question to get started.
+            Use the "Add Question" button in the assessment creation flow to create questions.
           </p>
         </div>
       ) : (
@@ -235,7 +205,12 @@ export default function QuestionBank() {
       )}
 
       {showAddModal && (
-        <AddQuestionModal onClose={() => setShowAddModal(false)} />
+        <AddQuestionModal 
+          onClose={() => setShowAddModal(false)}
+          onAdd={(question) => setQuestions([...questions, question])}
+          skills={skills}
+          loadingSkills={loadingSkills}
+        />
       )}
 
       {retireTarget && (
@@ -290,8 +265,37 @@ function DifficultyBadge({
   );
 }
 
-function AddQuestionModal({ onClose }: { onClose: () => void }) {
-  const [questionType, setQuestionType] = useState("Multiple Choice");
+function AddQuestionModal({ onClose, onAdd, skills, loadingSkills }: { onClose: () => void; onAdd: (question: Question) => void; skills: SkillResponse[]; loadingSkills: boolean; }) {
+  const [form, setForm] = useState({
+    text: "",
+    type: "Multiple Choice" as Question["type"],
+    skill: "",
+    difficulty: "Easy" as Question["difficulty"],
+    options: ["", "", "", ""],
+    correctAnswer: "0",
+  });
+
+  const handleAdd = () => {
+    
+    if (!form.text.trim() || !form.skill) {
+      alert("Please enter question text and select a skill.");
+      return;
+    }
+
+    const question: Question = {
+      id: `Q-${Date.now()}`,
+      text: form.text,
+      type: form.type,
+      skill: form.skill,
+      difficulty: form.difficulty,
+      status: "Active",
+      createdDate: new Date().toISOString().split("T")[0],
+    };
+
+    onAdd(question);
+    onClose();
+  };
+  
 
   return (
     <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4">
@@ -315,6 +319,8 @@ function AddQuestionModal({ onClose }: { onClose: () => void }) {
           <Field label="Question Text">
             <textarea
               rows={3}
+              value={form.text}
+              onChange={(e) => setForm({ ...form, text: e.target.value })}
               placeholder="Enter your question..."
               className="w-full border border-[#DDD] rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#6C4DF6] resize-none"
             />
@@ -323,8 +329,8 @@ function AddQuestionModal({ onClose }: { onClose: () => void }) {
           <div className="grid grid-cols-2 gap-4">
             <Field label="Question Type">
               <select
-                value={questionType}
-                onChange={(e) => setQuestionType(e.target.value)}
+                value={form.type}
+                onChange={(e) => setForm({ ...form, type: e.target.value as Question["type"] })}
                 className="w-full border border-[#DDD] rounded-lg px-3 py-2.5 text-sm"
               >
                 <option>Multiple Choice</option>
@@ -334,28 +340,45 @@ function AddQuestionModal({ onClose }: { onClose: () => void }) {
             </Field>
 
             <Field label="Skill">
-              <select className="w-full border border-[#DDD] rounded-lg px-3 py-2.5 text-sm">
-                <option>React.js</option>
-                <option>JavaScript</option>
-                <option>UI Development</option>
-                <option>TypeScript</option>
-              </select>
-            </Field>
+                {loadingSkills ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 size={16} className="animate-spin" />
+                    <span className="text-sm text-gray-500">Loading skills...</span>
+                  </div>
+                ) : (
+                  <select
+                    value={form.skill}
+                    onChange={(e) => setForm({ ...form, skill: e.target.value })}
+                    className="w-full border border-[#DDD] rounded-lg px-3 py-2.5 text-sm"
+                  >
+                    <option value="">Select skill</option>
+                    {skills.map((skill) => (
+                      <option key={skill.id} value={skill.name}>
+                        {skill.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </Field>
           </div>
 
           <Field label="Difficulty">
-            <select className="w-full border border-[#DDD] rounded-lg px-3 py-2.5 text-sm">
+            <select
+              value={form.difficulty}
+              onChange={(e) => setForm({ ...form, difficulty: e.target.value as Question["difficulty"] })}
+              className="w-full border border-[#DDD] rounded-lg px-3 py-2.5 text-sm"
+            >
               <option>Easy</option>
               <option>Medium</option>
               <option>Hard</option>
             </select>
           </Field>
 
-          {(questionType === "Multiple Choice" ||
-            questionType === "True / False") && (
+          {(form.type === "Multiple Choice" ||
+            form.type === "True / False") && (
             <div className="space-y-3">
               <p className="text-sm font-medium text-[#333]">Answer Options</p>
-              {questionType === "True / False" ? (
+              {form.type === "True / False" ? (
                 <>
                   <AnswerOption label="True" name="correct" />
                   <AnswerOption label="False" name="correct" />
@@ -385,11 +408,10 @@ function AddQuestionModal({ onClose }: { onClose: () => void }) {
             onClick={onClose}
             className="border border-[#DDD] px-4 py-2 rounded-lg text-sm"
           >
-            Cancel
-          </button>
-          <button
-            onClick={onClose}
-            className="bg-[#6C4DF6] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#5D3FE4]"
+            Cancel</button>
+            <button
+              onClick={handleAdd}
+              className="bg-[#6C4DF6] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#5D3FE4]"
           >
             Add Question
           </button>
@@ -434,3 +456,13 @@ function AnswerOption({
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+

@@ -2,11 +2,30 @@
 "use client";
 
 import { Bell, ChevronDown, User } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
+import type { UserRole } from "@/lib/api";
 
 export default function Navbar() {
+  const { profile } = useAuth();
+
+  const roleLabel = (role: UserRole | undefined): string => {
+    switch (role) {
+      case "employer":
+        return "Employer";
+      case "admin":
+        return "Admin";
+      case "learner":
+      default:
+        return "Student";
+    }
+  };
+
+  const displayName = profile?.full_name?.trim() || "User";
+  const displayRole = roleLabel(profile?.role);
+
   return (
     <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white/0 px-6">
-      
+
       {/* Left */}
       <div>
         {/* <h1 className="text-lg font-semibold text-slate-900">
@@ -33,18 +52,18 @@ export default function Navbar() {
 
         {/* User */}
         <div className="flex items-center gap-3 border-l border-slate-200 pl-5">
-          
+
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-100 text-indigo-700">
             <User size={18} />
           </div>
 
           <div className="hidden sm:block">
             <p className="text-sm font-semibold text-slate-900">
-              Nida Karamat
+              {displayName}
             </p>
 
             <p className="text-xs text-slate-500">
-              Student
+              {displayRole}
             </p>
           </div>
 

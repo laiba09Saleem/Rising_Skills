@@ -1,7 +1,6 @@
- "use client";
+"use client";
 
 import Link from "next/link";
-import type { Challenge } from "@/lib/challenges";
 import {
   ArrowRight,
   CalendarDays,
@@ -9,11 +8,41 @@ import {
   Trophy,
 } from "lucide-react";
 
+export interface ChallengeCardData {
+  id: string;
+  title: string;
+  description: string | null;
+  difficulty: string;
+  status: string;
+  submission_deadline: string | null;
+  skills?: Array<{ skill_id: string; skill_name: string }>;
+  skillsText?: string[];
+  submissionType?: string;
+  points?: number;
+}
+
+function formatDate(iso: string | null): string {
+  if (!iso) return "No deadline";
+  try {
+    return new Date(iso).toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  } catch {
+    return iso;
+  }
+}
+
 export default function ChallengeCard({
   challenge,
 }: {
-  challenge: Challenge;
+  challenge: ChallengeCardData;
 }) {
+  const skills = challenge.skills
+    ? challenge.skills.map((s) => s.skill_name)
+    : challenge.skillsText || [];
+
   return (
     <div className="group rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
       {/* Top */}
@@ -23,8 +52,8 @@ export default function ChallengeCard({
         </div>
 
         <span
-          className={`rounded-full px-3 py-1 text-xs font-semibold ${
-            challenge.status === "Open"
+          className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${
+            challenge.status === "published" || challenge.status === "Open"
               ? "bg-emerald-50 text-emerald-700"
               : "bg-slate-100 text-slate-600"
           }`}
@@ -39,47 +68,48 @@ export default function ChallengeCard({
       </h2>
 
       <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">
-        {challenge.description}
+        {challenge.description || "No description provided."}
       </p>
 
       {/* Skills */}
-      <div className="mt-5">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-          Skills Tested
-        </p>
-
-        <div className="flex flex-wrap gap-2">
-          {challenge.skills.map((skill) => (
-            <span
-              key={skill}
-              className="rounded-lg bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700"
-            >
-              {skill}
-            </span>
-          ))}
+      {skills.length > 0 && (
+        <div className="mt-5">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+            Skills Tested
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {skills.map((skill, i) => (
+              <span
+                key={`${skill}-${i}`}
+                className="rounded-lg bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700"
+              >
+                {skill}
+              </span>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Information */}
       <div className="mt-6 grid grid-cols-2 gap-3 border-t border-slate-100 pt-5">
-        <div className="flex items-center gap-2 text-xs text-slate-500">
+        <div className="flex items-center gap-2 text-xs capitalize text-slate-500">
           <Trophy size={15} className="text-indigo-500" />
           {challenge.difficulty}
         </div>
 
         <div className="flex items-center gap-2 text-xs text-slate-500">
           <CalendarDays size={15} className="text-indigo-500" />
-          {challenge.deadline}
+          {formatDate(challenge.submission_deadline)}
         </div>
 
         <div className="flex items-center gap-2 text-xs text-slate-500">
           <Code2 size={15} className="text-indigo-500" />
-          {challenge.submissionType}
+          {challenge.submissionType || "Repository Link"}
         </div>
 
         <div className="flex items-center gap-2 text-xs text-slate-500">
           <Trophy size={15} className="text-indigo-500" />
-          {challenge.points} points
+          {challenge.points != null ? `${challenge.points} points` : "—"}
         </div>
       </div>
 

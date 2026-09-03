@@ -11,7 +11,7 @@ import ApplicationStatusBadge from "./ApplicationStatusBadge";
 import ApplicationActionMenu from "./ApplicationActionMenu";
 
 export interface Application {
-  id: number;
+  id: string | number;
   name: string;
   email: string;
   job: string;
@@ -26,7 +26,7 @@ interface Props {
   applications: Application[];
   onView: (application: Application) => void;
   onEdit: (application: Application) => void;
-  onDelete: (id: number) => void;
+  onDelete: (id: string | number) => void;
 }
 
 export default function ApplicationTable({

@@ -6,12 +6,16 @@ import Link from "next/link";
 import { useState } from "react";
 import { Eye, EyeOff, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth-context";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { signUp } = useAuth();
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -30,19 +34,34 @@ export default function RegisterPage() {
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
 
     if (formData.password !== formData.confirmPassword) {
-      alert("Passwords do not match");
+      setFormError("Passwords do not match");
       return;
     }
 
-    // Backend API yahan connect hogi
-    console.log("Register Data:", formData);
-
-    // Demo flow: registration ke baad login page
-    router.push("/login");
+    setSubmitting(true);
+    try {
+      const role = formData.role === "employer" ? "employer" : "learner";
+      const result = await signUp({
+        email: formData.email.trim().toLowerCase(),
+        password: formData.password,
+        fullName: formData.name,
+        role,
+      });
+      if (result.requiresConfirmation) {
+        router.push("/login");
+      } else {
+        router.push("/dashboard");
+      }
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Registration failed");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -95,6 +114,12 @@ export default function RegisterPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5">
+
+              {formError && (
+                <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {formError}
+                </p>
+              )}
               
               {/* Name */}
               <div>
@@ -209,9 +234,10 @@ export default function RegisterPage() {
 
               <button
                 type="submit"
-                className="w-full rounded-xl bg-slate-900 py-3.5 font-semibold text-white transition hover:bg-slate-800"
+                disabled={submitting}
+                className="w-full rounded-xl bg-slate-900 py-3.5 font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
               >
-                Create Account
+                {submitting ? "Creating account…" : "Create Account"}
               </button>
             </form>
 

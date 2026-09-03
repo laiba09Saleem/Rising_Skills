@@ -1,153 +1,95 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import {
-  Plus,
-  Trophy,
-} from "lucide-react";
+import { Plus, Trophy } from "lucide-react";
 
 import ChallengeStats from "../../../component/employers/challenges/ChallengeStats";
 import ChallengeFilters from "../../../component/employers/challenges/ChallengeFilters";
-
 import ChallengeTable, {
   Challenge,
 } from "../../../component/employers/challenges/ChallengeTable";
+import { api, type ChallengePublic } from "@/lib/api";
+import { useFetch } from "@/lib/useFetch";
+import { LoadingState, ErrorState, EmptyState } from "@/components/ui/states";
 
-const initialChallenges: Challenge[] = [
-  {
-    id: 1,
-    title: "React Frontend Coding Challenge",
-    category: "Frontend",
-    difficulty: "Medium",
-    participants: 48,
-    deadline: "Sep 15, 2026",
-    duration: "90 Minutes",
-    status: "Active",
-  },
-  {
-    id: 2,
-    title: "Machine Learning Model Challenge",
-    category: "AI / ML",
-    difficulty: "Hard",
-    participants: 32,
-    deadline: "Sep 20, 2026",
-    duration: "120 Minutes",
-    status: "Active",
-  },
-  {
-    id: 3,
-    title: "UI/UX Design Challenge",
-    category: "Design",
-    difficulty: "Medium",
-    participants: 27,
-    deadline: "Sep 10, 2026",
-    duration: "60 Minutes",
-    status: "Active",
-  },
-  {
-    id: 4,
-    title: "JavaScript Fundamentals",
-    category: "Programming",
-    difficulty: "Easy",
-    participants: 65,
-    deadline: "Aug 30, 2026",
-    duration: "45 Minutes",
-    status: "Completed",
-  },
-  {
-    id: 5,
-    title: "Backend API Development",
-    category: "Backend",
-    difficulty: "Hard",
+function formatDate(iso: string | null): string {
+  if (!iso) return "No deadline";
+  try {
+    return new Date(iso).toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+function mapChallenge(c: ChallengePublic): Challenge {
+  return {
+    id: c.id,
+    title: c.title,
+    category: "General",
+    difficulty: c.difficulty,
     participants: 0,
-    deadline: "Sep 25, 2026",
-    duration: "120 Minutes",
-    status: "Draft",
-  },
-];
+    deadline: formatDate(c.submission_deadline),
+    duration: c.time_limit_seconds
+      ? `${Math.round(c.time_limit_seconds / 60)} min`
+      : "Unlimited",
+    status: c.status,
+  };
+}
 
 export default function ChallengesPage() {
-  const [challenges, setChallenges] =
-    useState<Challenge[]>(initialChallenges);
-
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("All");
 
+  const fetcher = useMemo(
+    () => () =>
+      api.challenges.list({
+        search: search || undefined,
+        page_size: 100,
+      }),
+    [search],
+  );
+  const { data, loading, error, refetch } = useFetch(fetcher, [search]);
+
+  const challenges: Challenge[] = useMemo(
+    () => (data?.items || []).map(mapChallenge),
+    [data],
+  );
+
   const filteredChallenges = challenges.filter((challenge) => {
-    const text = search.toLowerCase();
-
-    const matchesSearch =
-      challenge.title.toLowerCase().includes(text) ||
-      challenge.category.toLowerCase().includes(text);
-
-    const matchesStatus =
-      status === "All" || challenge.status === status;
-
-    return matchesSearch && matchesStatus;
+    const matchesStatus = status === "All" || challenge.status === status;
+    return matchesStatus;
   });
 
   const activeCount = challenges.filter(
-    (item) => item.status === "Active"
+    (item) => item.status === "published",
   ).length;
-
   const participants = challenges.reduce(
     (total, item) => total + item.participants,
-    0
+    0,
   );
-
   const completedCount = challenges.filter(
-    (item) => item.status === "Completed"
+    (item) => item.status === "closed",
   ).length;
 
-  // VIEW
   const handleView = (challenge: Challenge) => {
     alert(
-      `Challenge: ${challenge.title}\nCategory: ${challenge.category}\nDifficulty: ${challenge.difficulty}\nParticipants: ${challenge.participants}`
+      `Challenge: ${challenge.title}\nCategory: ${challenge.category}\nDifficulty: ${challenge.difficulty}`,
     );
   };
 
-  // EDIT
   const handleEdit = (challenge: Challenge) => {
-    const newStatus = window.prompt(
-      "Enter status: Active / Draft / Completed / Closed",
-      challenge.status
-    );
-
-    if (!newStatus) return;
-
-    const validStatuses = [
-      "Active",
-      "Draft",
-      "Completed",
-      "Closed",
-    ];
-
-    if (!validStatuses.includes(newStatus)) {
-      alert("Invalid status.");
-      return;
-    }
-
-    setChallenges((prev) =>
-      prev.map((item) =>
-        item.id === challenge.id
-          ? { ...item, status: newStatus }
-          : item
-      )
+    alert(
+      `Editing ${challenge.title} is not yet supported via the API. Status: ${challenge.status}`,
     );
   };
 
-  // DELETE
-  const handleDelete = (id: number) => {
-    const confirmDelete = window.confirm(
-      "Are you sure you want to delete this challenge?"
-    );
-
-    if (!confirmDelete) return;
-
-    setChallenges((prev) =>
-      prev.filter((challenge) => challenge.id !== id)
-    );
+  const handleDelete = (id: string | number) => {
+    void id;
   };
 
   return (
@@ -161,18 +103,13 @@ export default function ChallengesPage() {
             <span>/</span>
             <span>Challenges</span>
           </div>
-
-          <h1 className="text-3xl font-bold text-slate-900">
-            Challenges
-          </h1>
-
+          <h1 className="text-3xl font-bold text-slate-900">Challenges</h1>
           <p className="mt-1 text-slate-500">
             Create and manage practical challenges for candidates.
           </p>
         </div>
-
         <Link
-          href="/employer/challenges/create"
+          href="/dashboard/challenges"
           className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
         >
           <Plus className="h-5 w-5" />
@@ -197,12 +134,23 @@ export default function ChallengesPage() {
           setStatus={setStatus}
         />
 
-        <ChallengeTable
-          challenges={filteredChallenges}
-          onView={handleView}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-        />
+        {loading ? (
+          <LoadingState label="Loading challenges…" />
+        ) : error ? (
+          <ErrorState message={error} onRetry={refetch} />
+        ) : filteredChallenges.length === 0 ? (
+          <EmptyState
+            title="No challenges found"
+            description="Try changing your search or filter."
+          />
+        ) : (
+          <ChallengeTable
+            challenges={filteredChallenges}
+            onView={handleView}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+          />
+        )}
 
         <div className="border-t border-slate-200 bg-slate-50 px-5 py-4">
           <p className="text-sm text-slate-500">

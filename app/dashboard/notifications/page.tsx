@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Bell,
   CheckCheck,
@@ -9,125 +9,89 @@ import {
   ShieldAlert,
 } from "lucide-react";
 
-import NotificationCard from "@/components/notifications/NotificationCard";
+import NotificationCard, {
+  type Notification,
+} from "@/components/notifications/NotificationCard";
 import NotificationFilters, {
   type NotificationFilter,
 } from "@/components/notifications/NotificationFilters";
 import NotificationPreferences from "@/components/notifications/NotificationPreferences";
+import { api, type NotificationType } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
+import { useFetch } from "@/lib/useFetch";
+import { LoadingState, ErrorState } from "@/components/ui/states";
 
-const CHALLENGE_TYPES = new Set(["challenge", "submission", "deadline"]);
-const OPPORTUNITY_TYPES = new Set(["opportunity", "application"]);
-const SYSTEM_TYPES = new Set(["evidence", "feedback"]);
+const CHALLENGE_TYPES = new Set<NotificationType>([
+  "experience_created",
+  "experience_completed",
+]);
+const OPPORTUNITY_TYPES = new Set<NotificationType>(["application_status"]);
+const SYSTEM_TYPES = new Set<NotificationType>([
+  "evidence_verified",
+  "feedback_submitted",
+]);
 
 function filterNotifications(
-  items: typeof notifications,
-  filter: NotificationFilter
+  items: Notification[],
+  filter: NotificationFilter,
 ) {
   switch (filter) {
     case "Unread":
-      return items.filter((notification) => !notification.read);
+      return items.filter((n) => !n.is_read);
     case "Challenges":
-      return items.filter((notification) =>
-        CHALLENGE_TYPES.has(notification.type)
-      );
+      return items.filter((n) => CHALLENGE_TYPES.has(n.notification_type));
     case "Opportunities":
-      return items.filter((notification) =>
-        OPPORTUNITY_TYPES.has(notification.type)
-      );
+      return items.filter((n) => OPPORTUNITY_TYPES.has(n.notification_type));
     case "System":
-      return items.filter((notification) =>
-        SYSTEM_TYPES.has(notification.type)
-      );
+      return items.filter((n) => SYSTEM_TYPES.has(n.notification_type));
     default:
       return items;
   }
 }
 
-const notifications = [
-  {
-    id: "1",
-    type: "submission",
-    title: "Challenge submission evaluated",
-    message:
-      "Your React Frontend Dashboard submission has been evaluated. View your score and feedback.",
-    time: "10 minutes ago",
-    read: false,
-    urgency: "medium" as const,
-  },
-  {
-    id: "2",
-    type: "opportunity",
-    title: "New opportunity recommendation",
-    message:
-      "A Frontend Developer Internship matches your React and JavaScript skills.",
-    time: "1 hour ago",
-    read: false,
-    urgency: "low" as const,
-  },
-  {
-    id: "3",
-    type: "evidence",
-    title: "Skill evidence verified",
-    message:
-      "Your React skill evidence has been verified by an evaluator.",
-    time: "3 hours ago",
-    read: false,
-    urgency: "high" as const,
-  },
-  {
-    id: "4",
-    type: "challenge",
-    title: "New challenge assigned",
-    message:
-      "A new JavaScript API Integration challenge is available for you.",
-    time: "Yesterday",
-    read: true,
-    urgency: "medium" as const,
-  },
-  {
-    id: "5",
-    type: "application",
-    title: "Application status updated",
-    message:
-      "Your application for Frontend Developer Intern moved to Shortlisted.",
-    time: "Yesterday",
-    read: true,
-    urgency: "high" as const,
-  },
-  {
-    id: "6",
-    type: "deadline",
-    title: "Challenge deadline approaching",
-    message:
-      "Your React Frontend Dashboard challenge deadline is tomorrow.",
-    time: "2 days ago",
-    read: true,
-    urgency: "high" as const,
-  },
-  {
-    id: "7",
-    type: "feedback",
-    title: "Employer feedback received",
-    message:
-      "An employer has added feedback to your recent application.",
-    time: "3 days ago",
-    read: true,
-    urgency: "low" as const,
-  },
-];
-
 export default function NotificationsPage() {
+  const { token } = useAuth();
   const [showPreferences, setShowPreferences] = useState(false);
   const [activeFilter, setActiveFilter] = useState<NotificationFilter>("All");
 
-  const unreadCount = notifications.filter(
-    (notification) => !notification.read
-  ).length;
-
-  const filteredNotifications = filterNotifications(
-    notifications,
-    activeFilter
+  const fetcher = useMemo(
+    () => () =>
+      token
+        ? api.notifications.list({ page_size: 100 }, token)
+        : Promise.resolve({ items: [], total: 0, page: 1, page_size: 100, pages: 0 }),
+    [token],
   );
+  const { data, loading, error, refetch } = useFetch(fetcher, [token]);
+
+  const notifications: Notification[] = useMemo(
+    () =>
+      (data?.items || []).map((n) => ({
+        id: n.id,
+        notification_type: n.notification_type,
+        title: n.title,
+        message: n.message,
+        created_at: n.created_at,
+        is_read: n.is_read,
+      })),
+    [data],
+  );
+
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
+  const filteredNotifications = filterNotifications(notifications, activeFilter);
+
+  async function handleMarkAllRead() {
+    if (!token) return;
+    try {
+      await api.notifications.markAllRead(token);
+      refetch();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function handleRead(_id: string) {
+    refetch();
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 p-6 lg:p-8">
@@ -139,20 +103,17 @@ export default function NotificationsPage() {
               <h1 className="text-3xl font-bold tracking-tight text-slate-900">
                 Notifications
               </h1>
-
               {unreadCount > 0 && (
                 <span className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-bold text-indigo-700">
                   {unreadCount} unread
                 </span>
               )}
             </div>
-
             <p className="mt-2 text-sm text-slate-500">
               Stay updated with your assessments, challenges, opportunities,
               applications, and skill verification.
             </p>
           </div>
-
           <button
             type="button"
             onClick={() => setShowPreferences(!showPreferences)}
@@ -173,7 +134,6 @@ export default function NotificationsPage() {
                   {notifications.length}
                 </p>
               </div>
-
               <div className="rounded-xl bg-indigo-50 p-3 text-indigo-600">
                 <Bell size={21} />
               </div>
@@ -188,7 +148,6 @@ export default function NotificationsPage() {
                   {unreadCount}
                 </p>
               </div>
-
               <div className="rounded-xl bg-amber-50 p-3 text-amber-600">
                 <Clock size={21} />
               </div>
@@ -198,12 +157,11 @@ export default function NotificationsPage() {
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-slate-500">Security</p>
+                <p className="text-sm text-slate-500">Account</p>
                 <p className="mt-1 text-2xl font-bold text-slate-900">
-                  Active
+                  {token ? "Active" : "Signed out"}
                 </p>
               </div>
-
               <div className="rounded-xl bg-emerald-50 p-3 text-emerald-600">
                 <ShieldAlert size={21} />
               </div>
@@ -211,7 +169,6 @@ export default function NotificationsPage() {
           </div>
         </div>
 
-        {/* Preferences */}
         {showPreferences && (
           <div className="mb-8">
             <NotificationPreferences />
@@ -225,22 +182,29 @@ export default function NotificationsPage() {
               activeFilter={activeFilter}
               onFilterChange={setActiveFilter}
             />
-
             <button
               type="button"
-              className="inline-flex items-center justify-center gap-2 text-sm font-semibold text-indigo-600 hover:text-indigo-700"
+              onClick={handleMarkAllRead}
+              disabled={!token || unreadCount === 0}
+              className="inline-flex items-center justify-center gap-2 text-sm font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-50"
             >
               <CheckCheck size={17} />
               Mark all as read
             </button>
           </div>
 
-          {filteredNotifications.length > 0 ? (
+          {loading ? (
+            <LoadingState label="Loading notifications…" />
+          ) : error ? (
+            <ErrorState message={error} onRetry={refetch} />
+          ) : filteredNotifications.length > 0 ? (
             <div>
               {filteredNotifications.map((notification) => (
                 <NotificationCard
                   key={notification.id}
                   notification={notification}
+                  token={token}
+                  onRead={handleRead}
                 />
               ))}
             </div>
@@ -249,13 +213,11 @@ export default function NotificationsPage() {
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-400">
                 <Bell size={24} />
               </div>
-
               <h3 className="mt-4 font-semibold text-slate-900">
                 {activeFilter === "All"
                   ? "No notifications"
                   : `No ${activeFilter.toLowerCase()} notifications`}
               </h3>
-
               <p className="mt-1 text-sm text-slate-500">
                 {activeFilter === "All"
                   ? "You are all caught up."
@@ -265,14 +227,13 @@ export default function NotificationsPage() {
           )}
         </div>
 
-        {/* Footer note */}
-        <div className="mt-5 rounded-xl border border-slate-200 bg-white px-5 py-4">
-          <p className="text-xs leading-5 text-slate-500">
-            Notification history is retained even when an external delivery
-            channel such as email or push fails. Delivery status will be
-            available when the backend notification service is connected.
-          </p>
-        </div>
+        {!token && (
+          <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
+            <p className="text-xs leading-5 text-amber-700">
+              Sign in to load your notifications from the backend.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

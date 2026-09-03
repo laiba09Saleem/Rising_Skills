@@ -16,7 +16,7 @@ export type SkillState =
   | "Verified";
 
 export interface Skill {
-  id: number;
+  id: string | number;
   name: string;
   category: string;
   proficiency: string;
@@ -30,7 +30,7 @@ interface SkillCardProps {
   skill: Skill;
   onView: (skill: Skill) => void;
   onEdit: (skill: Skill) => void;
-  onDelete: (id: number) => void;
+  onDelete: (id: string | number) => void;
 }
 
 export default function SkillCard({

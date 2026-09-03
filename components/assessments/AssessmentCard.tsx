@@ -1,18 +1,19 @@
 "use client";
 
 import { useState } from "react";
+import {
+  api,
+  ApiError,
+  type AssessmentPublic,
+  type AttemptStartResponse,
+} from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 
-interface Assessment {
-  id: string;
-  title: string;
-  description: string;
-  skills: string[];
-  questions: number;
-  duration: number;
-  passScore: number;
-  attempts: number;
-  status: string;
-  version: string;
+interface Assessment extends AssessmentPublic {
+  skills?: string[];
+  questions?: number;
+  attempts?: number;
+  version?: string;
 }
 
 export default function AssessmentCard({
@@ -20,8 +21,35 @@ export default function AssessmentCard({
 }: {
   assessment: Assessment;
 }) {
+  const { token } = useAuth();
   const [showMenu, setShowMenu] = useState(false);
   const [showAssign, setShowAssign] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [attempt, setAttempt] = useState<AttemptStartResponse | null>(null);
+  const [startError, setStartError] = useState<string | null>(null);
+
+  async function handleStart() {
+    if (!token) {
+      setStartError("Sign in to start an assessment attempt.");
+      return;
+    }
+    setStarting(true);
+    setStartError(null);
+    try {
+      const res = await api.assessments.startAttempt(assessment.id, token);
+      setAttempt(res);
+    } catch (err) {
+      setStartError(
+        err instanceof ApiError
+          ? `Failed to start (${err.status}).`
+          : err instanceof Error
+            ? err.message
+            : "Failed to start attempt.",
+      );
+    } finally {
+      setStarting(false);
+    }
+  }
 
   return (
     <div className="border border-[#E8E8ED] rounded-xl p-5 hover:shadow-sm transition">
@@ -45,8 +73,8 @@ export default function AssessmentCard({
               </h3>
 
               <span
-                className={`text-xs px-2.5 py-1 rounded-full ${
-                  assessment.status === "Published"
+                className={`text-xs px-2.5 py-1 rounded-full capitalize ${
+                  assessment.status === "published"
                     ? "bg-[#E8F8EF] text-[#199B52]"
                     : "bg-[#FFF4DC] text-[#C78100]"
                 }`}
@@ -57,11 +85,12 @@ export default function AssessmentCard({
             </div>
 
             <p className="text-xs text-[#999] mt-1">
-              {assessment.id} • Version {assessment.version}
+              {assessment.id}
+              {assessment.skill?.name ? ` • ${assessment.skill.name}` : ""}
             </p>
 
             <p className="text-sm text-[#777] mt-3 max-w-2xl">
-              {assessment.description}
+              {assessment.description || "No description provided."}
             </p>
 
           </div>
@@ -106,60 +135,86 @@ export default function AssessmentCard({
       </div>
 
       {/* Skills */}
-      <div className="flex gap-2 mt-4 ml-15">
-
-        {assessment.skills.map((skill) => (
-          <span
-            key={skill}
-            className="px-2.5 py-1 bg-[#F4F1FF]
-            text-[#6C4DF6] rounded-md text-xs"
-          >
-            {skill}
-          </span>
-        ))}
-
-      </div>
+      {assessment.skills && assessment.skills.length > 0 && (
+        <div className="flex gap-2 mt-4 ml-15">
+          {assessment.skills.map((skill) => (
+            <span
+              key={skill}
+              className="px-2.5 py-1 bg-[#F4F1FF]
+              text-[#6C4DF6] rounded-md text-xs"
+            >
+              {skill}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Details */}
       <div className="grid grid-cols-4 border-t mt-5 pt-4">
 
         <Detail
           label="Questions"
-          value={assessment.questions.toString()}
+          value={
+            assessment.questions != null
+              ? assessment.questions.toString()
+              : "—"
+          }
         />
 
         <Detail
           label="Duration"
-          value={`${assessment.duration} min`}
+          value={`${Math.round(assessment.duration_seconds / 60)} min`}
         />
 
         <Detail
           label="Pass Score"
-          value={`${assessment.passScore}%`}
+          value={`${assessment.passing_score}%`}
         />
 
         <Detail
-          label="Max Attempts"
-          value={assessment.attempts.toString()}
+          label="Difficulty"
+          value={assessment.difficulty}
         />
 
       </div>
+
+      {startError && (
+        <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+          {startError}
+        </p>
+      )}
+
+      {attempt && (
+        <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+          <p className="text-sm font-semibold text-emerald-800">
+            Attempt #{attempt.attempt_number} started
+          </p>
+          <p className="mt-1 text-xs text-emerald-700">
+            {attempt.questions.length} questions • Expires{" "}
+            {new Date(attempt.expires_at).toLocaleString()}
+          </p>
+        </div>
+      )}
 
       {/* Actions */}
       <div className="flex justify-end gap-3 mt-4">
 
         <button
           onClick={() => setShowAssign(true)}
-          disabled={assessment.status !== "Published"}
+          disabled={assessment.status !== "published"}
           className="px-4 py-2 border border-[#DDD]
           rounded-lg text-sm hover:bg-gray-50 disabled:opacity-40"
         >
           Assign
         </button>
 
-        <button className="px-4 py-2 bg-[#6C4DF6]
-          text-white rounded-lg text-sm hover:bg-[#5D3FE4]">
-          View Details
+        <button
+          onClick={handleStart}
+          disabled={starting || assessment.status !== "published"}
+          className="px-4 py-2 bg-[#6C4DF6]
+          text-white rounded-lg text-sm hover:bg-[#5D3FE4] disabled:opacity-60"
+        >
+          {starting ? "Starting…" : attempt ? "Restart" : "Start Attempt"}
         </button>
 
       </div>

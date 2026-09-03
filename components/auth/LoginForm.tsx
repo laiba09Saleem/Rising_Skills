@@ -6,40 +6,65 @@ import Link from "next/link";
 import { useState } from "react";
 import { Eye, EyeOff, LogIn } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth-context";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { signIn, signInWithCredentials } = useAuth();
 
   const [showPassword, setShowPassword] = useState(false);
+  const [mode, setMode] = useState<"credentials" | "token">("credentials");
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     email: "",
     password: "",
   });
 
-  // const handleSubmit = (e: React.FormEvent) => {
-  //   e.preventDefault();
+  const [token, setToken] = useState("");
 
-  //   // Backend login API yahan connect hogi
-  //   console.log("Login Data:", formData);
-
-  //   // Demo flow
-  //   router.push("/dashboard");
-  // };
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-  
-    const email = formData.email.trim().toLowerCase();
-  
-    // Employer demo login
-    if (email.endsWith("@ran.com")) {
-      router.push("/employer/dashboard");
+    setFormError(null);
+
+    if (mode === "token") {
+      const trimmed = token.trim();
+      if (!trimmed) {
+        setFormError("Please paste a valid Bearer token.");
+        return;
+      }
+      setSubmitting(true);
+      // Optimistically route — the AuthProvider will fetch the profile
+      // and validate the token. If invalid, the user will see an error
+      // in-context on the dashboard.
+      signIn(trimmed);
+      // Route based on a quick heuristic until profile loads.
+      router.push("/dashboard");
+      setSubmitting(false);
       return;
     }
-  
-    // Student demo login
-    router.push("/dashboard");
+
+    const email = formData.email.trim().toLowerCase();
+    const password = formData.password;
+    if (!email || !password) {
+      setFormError("Please enter your email and password.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const profile = await signInWithCredentials(email, password);
+      if (profile.role === "employer") {
+        router.push("/employers/dashboard");
+      } else {
+        router.push("/dashboard");
+      }
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Sign in failed");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -92,7 +117,59 @@ export default function LoginPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5">
-              
+
+              {/* Mode toggle */}
+              <div className="flex rounded-xl bg-slate-100 p-1 text-sm">
+                <button
+                  type="button"
+                  onClick={() => setMode("credentials")}
+                  className={`flex-1 rounded-lg px-3 py-2 font-medium transition ${
+                    mode === "credentials"
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-slate-500"
+                  }`}
+                >
+                  Credentials
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode("token")}
+                  className={`flex-1 rounded-lg px-3 py-2 font-medium transition ${
+                    mode === "token"
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-slate-500"
+                  }`}
+                >
+                  Bearer Token
+                </button>
+              </div>
+
+              {formError && (
+                <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {formError}
+                </p>
+              )}
+
+              {mode === "token" ? (
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-700">
+                    Bearer Token (Supabase JWT)
+                  </label>
+                  <textarea
+                    value={token}
+                    onChange={(e) => setToken(e.target.value)}
+                    placeholder="Paste your Supabase Auth access token"
+                    rows={4}
+                    className="w-full rounded-xl border border-slate-200 px-4 py-3 font-mono text-xs outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
+                  />
+                  <p className="mt-2 text-xs text-slate-400">
+                    Dev mode: paste a token issued by Supabase Auth. It is
+                    stored in your browser and sent as
+                    <code className="mx-1">Authorization: Bearer …</code>.
+                  </p>
+                </div>
+              ) : (
+              <>
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-700">
                   Email Address
@@ -151,12 +228,15 @@ export default function LoginPage() {
                   </button>
                 </div>
               </div>
+              </>
+              )}
 
               <button
                 type="submit"
-                className="w-full rounded-xl bg-slate-900 py-3.5 font-semibold text-white transition hover:bg-slate-800"
+                disabled={submitting}
+                className="w-full rounded-xl bg-slate-900 py-3.5 font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
               >
-                Sign In
+                {submitting ? "Signing in…" : "Sign In"}
               </button>
             </form>
 

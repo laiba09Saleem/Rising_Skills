@@ -13,8 +13,8 @@ import {
 export type Evidence = {
   id: string;
   skill: string;
-  state: "Assessed" | "Demonstrated" | "Verified";
-  sourceType: "Assessment" | "Challenge" | "Verification";
+  state: "Assessed" | "Demonstrated" | "Verified" | "Unverified" | "Pending" | "Rejected";
+  sourceType: string;
   sourceTitle: string;
   score?: number;
   evaluator?: string;
@@ -22,19 +22,13 @@ export type Evidence = {
   description: string;
 };
 
-const stateConfig = {
-  Assessed: {
-    icon: BookOpenCheck,
-    className: "bg-indigo-50 text-indigo-700",
-  },
-  Demonstrated: {
-    icon: Award,
-    className: "bg-amber-50 text-amber-700",
-  },
-  Verified: {
-    icon: ShieldCheck,
-    className: "bg-emerald-50 text-emerald-700",
-  },
+const stateConfig: Record<string, { icon: any; className: string }> = {
+  Assessed: { icon: BookOpenCheck, className: "bg-indigo-50 text-indigo-700" },
+  Demonstrated: { icon: Award, className: "bg-amber-50 text-amber-700" },
+  Verified: { icon: ShieldCheck, className: "bg-emerald-50 text-emerald-700" },
+  Unverified: { icon: Clock3, className: "bg-slate-100 text-slate-600" },
+  Pending: { icon: Clock3, className: "bg-amber-50 text-amber-700" },
+  Rejected: { icon: CheckCircle2, className: "bg-red-50 text-red-700" },
 };
 
 export default function EvidenceCard({
@@ -42,7 +36,7 @@ export default function EvidenceCard({
 }: {
   evidence: Evidence;
 }) {
-  const config = stateConfig[evidence.state];
+  const config = stateConfig[evidence.state] || stateConfig.Unverified;
   const Icon = config.icon;
 
   return (

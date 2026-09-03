@@ -11,7 +11,7 @@ import ChallengeStatusBadge from "./ChallengeStatusBadge";
 import ChallengeActionMenu from "./ChallengeActionMenu";
 
 export interface Challenge {
-  id: number;
+  id: string | number;
   title: string;
   category: string;
   difficulty: string;
@@ -25,7 +25,7 @@ interface Props {
   challenges: Challenge[];
   onView: (challenge: Challenge) => void;
   onEdit: (challenge: Challenge) => void;
-  onDelete: (id: number) => void;
+  onDelete: (id: string | number) => void;
 }
 
 export default function ChallengeTable({

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { BriefcaseBusiness, Users } from "lucide-react";
 
@@ -9,147 +9,117 @@ import ApplicationFilters from "../../../component/employers/applications/Applic
 import ApplicationTable, {
   Application,
 } from "../../../component/employers/applications/ApplicationTable";
+import { api, type ApplicationPublic, type ApplicationStatus } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
+import { useFetch } from "@/lib/useFetch";
+import { LoadingState, ErrorState, EmptyState } from "@/components/ui/states";
 
-const initialApplications: Application[] = [
-  {
-    id: 1,
-    name: "Ahmed Raza",
-    email: "ahmed.raza@email.com",
-    job: "React.js Frontend Developer",
-    location: "Lahore, Pakistan",
-    applied: "Today",
-    experience: "2 Years",
-    skills: ["React.js", "Next.js", "TypeScript"],
-    status: "New",
-  },
-  {
-    id: 2,
-    name: "Ayesha Khan",
-    email: "ayesha.khan@email.com",
-    job: "AI / Machine Learning Engineer",
-    location: "Islamabad, Pakistan",
-    applied: "Yesterday",
-    experience: "3 Years",
-    skills: ["Python", "TensorFlow", "Machine Learning"],
-    status: "Shortlisted",
-  },
-  {
-    id: 3,
-    name: "Hassan Ali",
-    email: "hassan.ali@email.com",
-    job: "UI/UX Designer",
-    location: "Lahore, Pakistan",
-    applied: "2 days ago",
-    experience: "1.5 Years",
-    skills: ["Figma", "UI Design", "UX Research"],
-    status: "Interview",
-  },
-  {
-    id: 4,
-    name: "Sara Ahmed",
-    email: "sara.ahmed@email.com",
-    job: "React.js Frontend Developer",
-    location: "Karachi, Pakistan",
-    applied: "3 days ago",
-    experience: "2 Years",
-    skills: ["React.js", "JavaScript", "Tailwind CSS"],
-    status: "Rejected",
-  },
-  {
-    id: 5,
-    name: "Usman Tariq",
-    email: "usman.tariq@email.com",
-    job: "Backend Developer Intern",
-    location: "Lahore, Pakistan",
-    applied: "4 days ago",
-    experience: "Fresh",
-    skills: ["Node.js", "Express.js", "MongoDB"],
-    status: "New",
-  },
+function timeAgo(iso: string): string {
+  try {
+    const diff = Date.now() - new Date(iso).getTime();
+    const days = Math.floor(diff / 86400000);
+    if (days < 1) return "Today";
+    if (days === 1) return "Yesterday";
+    return `${days} days ago`;
+  } catch {
+    return iso;
+  }
+}
+
+function mapApp(a: ApplicationPublic): Application {
+  return {
+    id: a.id,
+    name: `Candidate ${a.profile_id.slice(0, 6)}`,
+    email: "—",
+    job: a.opportunity_id,
+    location: "—",
+    applied: timeAgo(a.applied_at),
+    experience: "—",
+    skills: [],
+    status: a.status,
+  };
+}
+
+const STATUS_OPTIONS: ApplicationStatus[] = [
+  "submitted",
+  "reviewing",
+  "shortlisted",
+  "rejected",
+  "accepted",
+  "withdrawn",
 ];
 
 export default function ApplicationsPage() {
-  const [applications, setApplications] =
-    useState<Application[]>(initialApplications);
-
+  const { token } = useAuth();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("All");
+  const [updating, setUpdating] = useState<string | null>(null);
+
+  const fetcher = useMemo(
+    () => () =>
+      token
+        ? api.applications.list({ page_size: 100 }, token)
+        : Promise.resolve({ items: [], total: 0, page: 1, page_size: 100, pages: 0 }),
+    [token],
+  );
+  const { data, loading, error, refetch } = useFetch(fetcher, [token]);
+
+  const applications: Application[] = useMemo(
+    () => (data?.items || []).map(mapApp),
+    [data],
+  );
 
   const filteredApplications = applications.filter((application) => {
     const text = search.toLowerCase();
-
     const matchesSearch =
       application.name.toLowerCase().includes(text) ||
-      application.email.toLowerCase().includes(text) ||
       application.job.toLowerCase().includes(text);
-
-    const matchesStatus =
-      status === "All" || application.status === status;
-
+    const matchesStatus = status === "All" || application.status === status;
     return matchesSearch && matchesStatus;
   });
 
-  // DELETE
-  const handleDelete = (id: number) => {
-    const confirmDelete = window.confirm(
-      "Are you sure you want to delete this application?"
-    );
+  async function handleStatusUpdate(
+    id: string,
+    newStatus: ApplicationStatus,
+  ) {
+    if (!token) return;
+    setUpdating(id);
+    try {
+      await api.applications.updateStatus(id, { status: newStatus }, token);
+      refetch();
+    } catch {
+      /* ignore */
+    } finally {
+      setUpdating(null);
+    }
+  }
 
-    if (!confirmDelete) return;
-
-    setApplications((prev) =>
-      prev.filter((application) => application.id !== id)
-    );
+  const handleDelete = (id: string | number) => {
+    void id;
   };
 
-  // VIEW
   const handleView = (application: Application) => {
     alert(
-      `Candidate: ${application.name}\nJob: ${application.job}\nStatus: ${application.status}`
+      `Candidate: ${application.name}\nJob: ${application.job}\nStatus: ${application.status}`,
     );
   };
 
-  // EDIT
   const handleEdit = (application: Application) => {
     const newStatus = window.prompt(
-      "Enter new status: New / Shortlisted / Interview / Rejected",
-      application.status
+      `Enter new status:\n${STATUS_OPTIONS.join(", ")}`,
+      application.status,
     );
-
     if (!newStatus) return;
-
-    const validStatuses = [
-      "New",
-      "Shortlisted",
-      "Interview",
-      "Rejected",
-    ];
-
-    if (!validStatuses.includes(newStatus)) {
+    if (!STATUS_OPTIONS.includes(newStatus as ApplicationStatus)) {
       alert("Invalid status.");
       return;
     }
-
-    setApplications((prev) =>
-      prev.map((item) =>
-        item.id === application.id
-          ? { ...item, status: newStatus }
-          : item
-      )
-    );
+    handleStatusUpdate(String(application.id), newStatus as ApplicationStatus);
   };
 
-  const newCount = applications.filter(
-    (item) => item.status === "New"
-  ).length;
-
-  const shortlisted = applications.filter(
-    (item) => item.status === "Shortlisted"
-  ).length;
-
-  const interviews = applications.filter(
-    (item) => item.status === "Interview"
-  ).length;
+  const newCount = applications.filter((a) => a.status === "submitted").length;
+  const shortlisted = applications.filter((a) => a.status === "shortlisted").length;
+  const interviews = applications.filter((a) => a.status === "accepted").length;
 
   return (
     <div className="min-h-screen bg-slate-50 p-6 lg:p-8">
@@ -162,24 +132,25 @@ export default function ApplicationsPage() {
             <span>/</span>
             <span>Applications</span>
           </div>
-
-          <h1 className="text-3xl font-bold text-slate-900">
-            Applications
-          </h1>
-
+          <h1 className="text-3xl font-bold text-slate-900">Applications</h1>
           <p className="mt-1 text-slate-500">
             Review and manage candidate applications.
           </p>
         </div>
-
         <Link
-          href="/employer/candidates"
+          href="/employers/matching"
           className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
         >
           <Users className="h-5 w-5" />
           Browse Candidates
         </Link>
       </div>
+
+      {!token && (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          Sign in as an employer to view applications.
+        </div>
+      )}
 
       {/* Stats */}
       <ApplicationStats
@@ -198,16 +169,28 @@ export default function ApplicationsPage() {
           setStatus={setStatus}
         />
 
-        <ApplicationTable
-          applications={filteredApplications}
-          onView={handleView}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-        />
+        {loading ? (
+          <LoadingState label="Loading applications…" />
+        ) : error ? (
+          <ErrorState message={error} onRetry={refetch} />
+        ) : filteredApplications.length === 0 ? (
+          <EmptyState
+            title="No applications found"
+            description="Try changing your search or filter."
+          />
+        ) : (
+          <ApplicationTable
+            applications={filteredApplications}
+            onView={handleView}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+          />
+        )}
 
         <div className="border-t border-slate-200 bg-slate-50 px-5 py-4">
           <p className="text-sm text-slate-500">
             Showing {filteredApplications.length} applications
+            {updating && " • Updating…"}
           </p>
         </div>
       </div>

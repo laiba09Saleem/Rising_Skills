@@ -2,6 +2,8 @@
 
 import { CheckCircle2, FileText, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { api, ApiError } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 
 type SubmissionMode = "file" | "repository";
 
@@ -77,12 +79,16 @@ export default function ChallengeSubmission({
   challengeTitle,
 }: ChallengeSubmissionProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { token } = useAuth();
 
   const [activeMode, setActiveMode] = useState<SubmissionMode | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [repositoryUrl, setRepositoryUrl] = useState("");
+  const [deploymentUrl, setDeploymentUrl] = useState("");
+  const [description, setDescription] = useState("");
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [existingSubmission, setExistingSubmission] =
     useState<StoredSubmission | null>(null);
 
@@ -152,7 +158,7 @@ export default function ChallengeSubmission({
     resetForm();
   };
 
-  const handleRepositorySubmit = (event: React.FormEvent) => {
+  const handleRepositorySubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
     if (!repositoryUrl.trim()) {
@@ -165,17 +171,49 @@ export default function ChallengeSubmission({
       return;
     }
 
+    setSubmitting(true);
+    setError("");
+
+    if (token) {
+      try {
+        await api.challenges.submit(
+          challengeId,
+          {
+            repository_url: repositoryUrl.trim(),
+            deployment_url: deploymentUrl.trim() || null,
+            description: description.trim() || null,
+          },
+          token,
+        );
+        setSuccessMessage("Repository link submitted successfully.");
+        resetForm();
+        return;
+      } catch (err) {
+        setError(
+          err instanceof ApiError
+            ? `Submission failed (${err.status}).`
+            : err instanceof Error
+              ? err.message
+              : "Submission failed.",
+        );
+        return;
+      } finally {
+        setSubmitting(false);
+      }
+    }
+
+    // Fallback: persist locally when not authenticated.
     const submission: StoredSubmission = {
       challengeId,
       type: "repository",
       repositoryUrl: repositoryUrl.trim(),
       submittedAt: new Date().toISOString(),
     };
-
     saveSubmission(submission);
     setExistingSubmission(submission);
-    setSuccessMessage("Repository link submitted successfully.");
+    setSuccessMessage("Repository link saved locally (sign in to submit to backend).");
     resetForm();
+    setSubmitting(false);
   };
 
   const formatFileSize = (bytes: number) => {
@@ -356,11 +394,36 @@ export default function ChallengeSubmission({
             className="mt-4 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-indigo-500"
           />
 
+          <input
+            type="url"
+            value={deploymentUrl}
+            onChange={(event) => {
+              setDeploymentUrl(event.target.value);
+              setError("");
+              setSuccessMessage("");
+            }}
+            placeholder="https://your-deployment-url.com (optional)"
+            className="mt-3 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-indigo-500"
+          />
+
+          <textarea
+            value={description}
+            onChange={(event) => {
+              setDescription(event.target.value);
+              setError("");
+              setSuccessMessage("");
+            }}
+            placeholder="Short description of your submission (optional)"
+            rows={3}
+            className="mt-3 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-indigo-500"
+          />
+
           <button
             type="submit"
-            className="mt-4 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+            disabled={submitting}
+            className="mt-4 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
           >
-            Submit Repository
+            {submitting ? "Submitting…" : "Submit Repository"}
           </button>
         </form>
       )}

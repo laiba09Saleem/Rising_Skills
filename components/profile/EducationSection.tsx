@@ -11,14 +11,7 @@ type Education = {
 };
 
 export default function EducationSection() {
-  const [education, setEducation] = useState<Education[]>([
-    {
-      id: 1,
-      degree: "BS Computer Science",
-      institution: "University of the Punjab",
-      year: "2021 - 2025",
-    },
-  ]);
+  const [education, setEducation] = useState<Education[]>([]);
 
   const [showForm, setShowForm] = useState(false);
 
@@ -119,42 +112,47 @@ export default function EducationSection() {
       )}
 
       <div className="space-y-4">
-
-        {education.map((item) => (
-          <div
-            key={item.id}
-            className="flex items-center justify-between rounded-xl border border-slate-200 p-4"
-          >
-
-            <div>
-              <h3 className="font-semibold text-slate-900">
-                {item.degree}
-              </h3>
-
-              <p className="text-sm text-slate-600">
-                {item.institution}
-              </p>
-
-              <p className="mt-1 text-xs text-slate-400">
-                {item.year}
-              </p>
-            </div>
-
-            <div className="flex gap-2">
-              <button className="rounded-lg p-2 hover:bg-slate-100">
-                <Pencil size={16} />
-              </button>
-
-              <button
-                onClick={() => deleteEducation(item.id)}
-                className="rounded-lg p-2 text-red-500 hover:bg-red-50"
-              >
-                <Trash2 size={16} />
-              </button>
-            </div>
-
+        {education.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center">
+            <p className="text-sm text-slate-500">No education added yet.</p>
           </div>
-        ))}
+        ) : (
+          education.map((item) => (
+            <div
+              key={item.id}
+              className="flex items-center justify-between rounded-xl border border-slate-200 p-4"
+            >
+
+              <div>
+                <h3 className="font-semibold text-slate-900">
+                  {item.degree}
+                </h3>
+
+                <p className="text-sm text-slate-600">
+                  {item.institution}
+                </p>
+
+                <p className="mt-1 text-xs text-slate-400">
+                  {item.year}
+                </p>
+              </div>
+
+              <div className="flex gap-2">
+                <button className="rounded-lg p-2 hover:bg-slate-100">
+                  <Pencil size={16} />
+                </button>
+
+                <button
+                  onClick={() => deleteEducation(item.id)}
+                  className="rounded-lg p-2 text-red-500 hover:bg-red-50"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+
+            </div>
+          ))
+        )}
 
       </div>
     </section>

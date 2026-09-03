@@ -16,7 +16,8 @@ import {
   User,
   Zap,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useAuth } from "@/lib/auth-context";
+import type { UserRole } from "@/lib/api";
 
 const navItems = [
   {
@@ -59,35 +60,26 @@ const navItems = [
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { profile, signOut } = useAuth();
 
-  const [user, setUser] = useState({
-    name: "User",
-    role: "Student",
-  });
-
-  useEffect(() => {
-    // Registration/Login ke baad user localStorage mein save hoga
-    const storedUser = localStorage.getItem("user");
-
-    if (storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser);
-
-        setUser({
-          name: parsedUser.name || "User",
-          role:
-            parsedUser.role === "employee"
-              ? "Employee"
-              : "Student",
-        });
-      } catch (error) {
-        console.error("Invalid user data:", error);
-      }
+  // Map backend role to a friendly display label.
+  const roleLabel = (role: UserRole | undefined): string => {
+    switch (role) {
+      case "employer":
+        return "Employer";
+      case "admin":
+        return "Admin";
+      case "learner":
+      default:
+        return "Student";
     }
-  }, []);
+  };
+
+  const displayName = profile?.full_name?.trim() || "User";
+  const displayRole = roleLabel(profile?.role);
 
   const handleLogout = () => {
-    localStorage.removeItem("user");
+    signOut();
     router.push("/login");
   };
 
@@ -114,25 +106,25 @@ export default function Sidebar() {
       </div>
 
       {/* User mini profile */}
-      {/* <div className="border-b border-slate-200 px-4 py-4">
+      <div className="border-b border-slate-200 px-4 py-4">
         <div className="flex items-center gap-3 rounded-xl bg-slate-50 p-3">
-          
+
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-100 text-indigo-700">
             <User size={18} />
           </div>
 
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-slate-900">
-              {user.name}
+              {displayName}
             </p>
 
             <p className="truncate text-xs text-slate-500">
-              {user.role}
+              {displayRole}
             </p>
           </div>
 
         </div>
-      </div> */}
+      </div>
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-4">

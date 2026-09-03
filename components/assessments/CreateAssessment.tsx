@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { X, ChevronLeft, ChevronRight, GripVertical } from "lucide-react";
+import { useEffect, useState } from "react";
+import { X, ChevronLeft, ChevronRight, GripVertical, Loader2 } from "lucide-react";
+import { api, type SkillResponse, type AssessmentPublic, type AssessmentCreate } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 
 interface CreateAssessmentProps {
   onClose: () => void;
@@ -29,48 +31,29 @@ const STEPS = [
   "Review & Publish",
 ];
 
-const mockBankQuestions = [
-  {
-    id: "Q-001",
-    text: "What is the purpose of the useEffect hook in React?",
-    type: "Multiple Choice",
-    skill: "React.js",
-    difficulty: "Medium",
-  },
-  {
-    id: "Q-002",
-    text: "JavaScript is a statically typed language.",
-    type: "True / False",
-    skill: "JavaScript",
-    difficulty: "Easy",
-  },
-  {
-    id: "Q-003",
-    text: "Explain the difference between let, const, and var.",
-    type: "Short Answer",
-    skill: "JavaScript",
-    difficulty: "Medium",
-  },
-  {
-    id: "Q-004",
-    text: "Which method is used to update state in a functional component?",
-    type: "Multiple Choice",
-    skill: "React.js",
-    difficulty: "Easy",
-  },
-  {
-    id: "Q-005",
-    text: "What does JSX stand for?",
-    type: "Multiple Choice",
-    skill: "React.js",
-    difficulty: "Easy",
-  },
-];
+const mockBankQuestions: Question[] = [];
+
+interface Question {
+  id: string;
+  text: string;
+  type: string;
+  skill: string;
+  difficulty: string;
+  options?: string[];
+  correctAnswer?: string;
+}
 
 export default function CreateAssessment({ onClose }: CreateAssessmentProps) {
+  const { token } = useAuth();
   const [step, setStep] = useState(0);
   const [showPublishConfirm, setShowPublishConfirm] = useState(false);
+  const [showAddQuestion, setShowAddQuestion] = useState(false);
   const [selectedQuestions, setSelectedQuestions] = useState<string[]>([]);
+  const [customQuestions, setCustomQuestions] = useState<Question[]>([]);
+  const [skills, setSkills] = useState<SkillResponse[]>([]);
+  const [loadingSkills, setLoadingSkills] = useState(true);
+  const [publishing, setPublishing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<AssessmentForm>({
     title: "",
     description: "",
@@ -86,15 +69,100 @@ export default function CreateAssessment({ onClose }: CreateAssessmentProps) {
     allowRetake: true,
   });
 
+  const [newQuestion, setNewQuestion] = useState({
+    text: "",
+    type: "Multiple Choice",
+    skill: "",
+    difficulty: "Medium",
+    options: ["", "", "", ""],
+    correctAnswer: "0",
+  });
+
+  useEffect(() => {
+    api.skills.list({ page_size: 100 })
+      .then((res) => {
+        setSkills(res.items);
+      })
+      .catch((err) => {
+        console.error("Failed to load skills:", err);
+      })
+      .finally(() => setLoadingSkills(false));
+  }, []);
+
   const toggleQuestion = (id: string) => {
     setSelectedQuestions((prev) =>
       prev.includes(id) ? prev.filter((q) => q !== id) : [...prev, id]
     );
   };
 
-  const handlePublish = () => {
-    setShowPublishConfirm(false);
-    onClose();
+  const handlePublish = async () => {
+    if (!token) {
+      setError("Sign in to create assessment.");
+      return;
+    }
+    
+    if (!form.title.trim()) {
+      setError("Please enter an assessment title.");
+      return;
+    }
+    if (!form.skills[0]) {
+      setError("Please select a skill for this assessment.");
+      return;
+    }
+    setPublishing(true);
+    setError(null);
+    try {
+      
+      const assessmentData: AssessmentCreate = {
+        title: form.title,
+        description: form.description,
+        skill_id: form.skills[0],
+        role_id: null,
+        difficulty: form.difficulty === "Easy" ? "beginner" : form.difficulty === "Medium" ? "intermediate" : "advanced",
+        duration_seconds: form.timeLimit * 60,
+        passing_score: form.passThreshold,
+        status: "published",
+        questions: customQuestions.map((q, index) => ({
+          question_text: q.text,
+          question_type: q.type === "Multiple Choice" ? "multiple_choice" : q.type === "True / False" ? "true_false" : "single_choice",
+          options: q.options ? q.options.map((opt, idx) => ({ id: String.fromCharCode(97 + idx), text: opt })) : [],
+          correct_answer: q.correctAnswer || "a",
+          points: 10,
+          display_order: index + 1,
+        }))}
+       await api.assessments.create(assessmentData, token);
+      setShowPublishConfirm(false);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create assessment"); 
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const handleAddCustomQuestion = () => {
+    if (!newQuestion.text.trim() || !newQuestion.skill) return;
+
+    const question: Question = {
+      id: `Q-${Date.now()}`,
+      text: newQuestion.text,
+      type: newQuestion.type,
+      skill: newQuestion.skill,
+      difficulty: newQuestion.difficulty,
+      options: newQuestion.type === "Multiple Choice" ? newQuestion.options.filter(Boolean) : undefined,
+      correctAnswer: newQuestion.correctAnswer,
+    };
+
+    setCustomQuestions([...customQuestions, question]);
+    setNewQuestion({
+      text: "",
+      type: "Multiple Choice",
+      skill: "",
+      difficulty: "Medium",
+      options: ["", "", "", ""],
+      correctAnswer: "0",
+    });
+    setShowAddQuestion(false);
   };
 
   return (
@@ -132,13 +200,25 @@ export default function CreateAssessment({ onClose }: CreateAssessmentProps) {
         </div>
 
         <div className="flex-1 overflow-y-auto p-5">
+          {error && (
+            <div className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+              {error}
+            </div>
+          )}
           {step === 0 && (
-            <StepBasicInfo form={form} setForm={setForm} />
+            <StepBasicInfo
+              form={form}
+              setForm={setForm}
+              skills={skills}
+              loadingSkills={loadingSkills}
+            />
           )}
           {step === 1 && (
             <StepSelectQuestions
               selected={selectedQuestions}
               onToggle={toggleQuestion}
+              customQuestions={customQuestions}
+              onAddQuestion={() => setShowAddQuestion(true)}
             />
           )}
           {step === 2 && (
@@ -148,6 +228,7 @@ export default function CreateAssessment({ onClose }: CreateAssessmentProps) {
             <StepReview
               form={form}
               selectedQuestions={selectedQuestions}
+              customQuestions={customQuestions}
             />
           )}
         </div>
@@ -206,9 +287,135 @@ export default function CreateAssessment({ onClose }: CreateAssessmentProps) {
               </button>
               <button
                 onClick={handlePublish}
+                disabled={publishing}
+                className="bg-[#6C4DF6] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#5D3FE4] disabled:opacity-60"
+              >
+                {publishing ? "Publishing..." : "Publish"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAddQuestion && (
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-lg font-semibold text-[#222] mb-4">
+              Add Custom Question
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-[#333] block mb-1.5">
+                  Question Text
+                </label>
+                <textarea
+                  value={newQuestion.text}
+                  onChange={(e) => setNewQuestion({ ...newQuestion, text: e.target.value })}
+                  rows={3}
+                  placeholder="Enter your question..."
+                  className="w-full border border-[#DDD] rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#6C4DF6] resize-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-[#333] block mb-1.5">
+                    Type
+                  </label>
+                  <select
+                    value={newQuestion.type}
+                    onChange={(e) => setNewQuestion({ ...newQuestion, type: e.target.value })}
+                    className="w-full border border-[#DDD] rounded-lg px-3 py-2.5 text-sm"
+                  >
+                    <option>Multiple Choice</option>
+                    <option>True / False</option>
+                    <option>Short Answer</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-[#333] block mb-1.5">
+                    Skill
+                  </label>
+                  <select
+                    value={newQuestion.skill}
+                    onChange={(e) => setNewQuestion({ ...newQuestion, skill: e.target.value })}
+                    className="w-full border border-[#DDD] rounded-lg px-3 py-2.5 text-sm"
+                  >
+                    <option value="">Select skill</option>
+                    {skills.map((skill) => (
+                      <option key={skill.id} value={skill.name}>
+                        {skill.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-[#333] block mb-1.5">
+                    Difficulty
+                  </label>
+                  <select
+                    value={newQuestion.difficulty}
+                    onChange={(e) => setNewQuestion({ ...newQuestion, difficulty: e.target.value })}
+                    className="w-full border border-[#DDD] rounded-lg px-3 py-2.5 text-sm"
+                  >
+                    <option>Easy</option>
+                    <option>Medium</option>
+                    <option>Hard</option>
+                  </select>
+                </div>
+              </div>
+
+              {newQuestion.type === "Multiple Choice" && (
+                <div>
+                  <label className="text-sm font-medium text-[#333] block mb-1.5">
+                    Options (A, B, C, D)
+                  </label>
+                  <div className="space-y-2">
+                    {newQuestion.options.map((opt, idx) => (
+                      <input
+                        key={idx}
+                        placeholder={`Option ${String.fromCharCode(65 + idx)}`}
+                        value={opt}
+                        onChange={(e) => {
+                          const updated = [...newQuestion.options];
+                          updated[idx] = e.target.value;
+                          setNewQuestion({ ...newQuestion, options: updated });
+                        }}
+                        className="w-full border border-[#DDD] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#6C4DF6]"
+                      />
+                    ))}
+                  </div>
+                  <label className="text-sm font-medium text-[#333] block mb-1.5 mt-3">
+                    Correct Answer
+                  </label>
+                  <select
+                    value={newQuestion.correctAnswer}
+                    onChange={(e) => setNewQuestion({ ...newQuestion, correctAnswer: e.target.value })}
+                    className="w-full border border-[#DDD] rounded-lg px-3 py-2.5 text-sm"
+                  >
+                    <option value="0">A</option>
+                    <option value="1">B</option>
+                    <option value="2">C</option>
+                    <option value="3">D</option>
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowAddQuestion(false)}
+                className="border border-[#DDD] px-4 py-2 rounded-lg text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddCustomQuestion}
                 className="bg-[#6C4DF6] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#5D3FE4]"
               >
-                Publish
+                Add Question
               </button>
             </div>
           </div>
@@ -221,9 +428,13 @@ export default function CreateAssessment({ onClose }: CreateAssessmentProps) {
 function StepBasicInfo({
   form,
   setForm,
+  skills,
+  loadingSkills,
 }: {
   form: AssessmentForm;
   setForm: React.Dispatch<React.SetStateAction<AssessmentForm>>;
+  skills: SkillResponse[];
+  loadingSkills: boolean;
 }) {
   return (
     <div className="space-y-4">
@@ -270,12 +481,24 @@ function StepBasicInfo({
         </Field>
 
         <Field label="Skills">
-          <select className="w-full border border-[#DDD] rounded-lg px-3 py-2.5 text-sm">
-            <option>React.js</option>
-            <option>JavaScript</option>
-            <option>UI Development</option>
-            <option>TypeScript</option>
-          </select>
+          {loadingSkills ? (
+            <div className="flex items-center gap-2">
+              <Loader2 size={16} className="animate-spin" />
+              <span className="text-sm text-gray-500">Loading skills...</span>
+            </div>
+          ) : (
+            <select
+              className="w-full border border-[#DDD] rounded-lg px-3 py-2.5 text-sm"
+              onChange={(e) => setForm({ ...form, skills: [e.target.value] })}
+            >
+              <option value="">Select a skill</option>
+              {skills.map((skill) => (
+                <option key={skill.id} value={skill.id}>
+                  {skill.name}
+                </option>
+              ))}
+            </select>
+          )}
         </Field>
       </div>
 
@@ -320,10 +543,16 @@ function StepBasicInfo({
 function StepSelectQuestions({
   selected,
   onToggle,
+  customQuestions,
+  onAddQuestion,
 }: {
   selected: string[];
   onToggle: (id: string) => void;
+  customQuestions: Question[];
+  onAddQuestion: () => void;
 }) {
+  
+
   return (
     <div>
       <div className="flex flex-wrap gap-3 mb-4">
@@ -348,6 +577,12 @@ function StepSelectQuestions({
           <option>True / False</option>
           <option>Short Answer</option>
         </select>
+        <button
+          onClick={onAddQuestion}
+          className="bg-[#6C4DF6] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#5D3FE4]"
+        >
+          + Add Question
+        </button>
       </div>
 
       <div className="bg-[#F1EDFF] rounded-lg px-4 py-2.5 mb-4">
@@ -356,42 +591,54 @@ function StepSelectQuestions({
         </p>
       </div>
 
-      <div className="space-y-2">
-        {mockBankQuestions.map((q) => (
-          <label
-            key={q.id}
-            className={`flex items-start gap-3 border rounded-lg p-4 cursor-pointer transition ${
-              selected.includes(q.id)
-                ? "border-[#6C4DF6] bg-[#FAFAFF]"
-                : "border-[#E8E8ED] hover:border-[#CCC]"
-            }`}
-          >
-            <input
-              type="checkbox"
-              checked={selected.includes(q.id)}
-              onChange={() => onToggle(q.id)}
-              className="mt-1 accent-[#6C4DF6]"
-            />
-            <div className="flex-1">
-              <p className="text-sm font-medium text-[#222]">{q.text}</p>
-              <div className="flex gap-2 mt-2">
-                <span className="text-xs px-2 py-0.5 bg-[#F0F0F0] rounded text-[#666]">
-                  {q.type}
-                </span>
-                <span className="text-xs px-2 py-0.5 bg-[#F4F1FF] text-[#6C4DF6] rounded">
-                  {q.skill}
-                </span>
-                <span className="text-xs px-2 py-0.5 bg-[#FFF4DC] text-[#C78100] rounded">
-                  {q.difficulty}
-                </span>
+      {allQuestions.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-[#E8E8ED] p-8 text-center">
+          <p className="text-sm text-[#666]">No questions added yet.</p>
+          <p className="text-xs text-[#999] mt-1">Click "+ Add Question" to create your first question.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {allQuestions.map((q) => (
+            <label
+              key={q.id}
+              className={`flex items-start gap-3 border rounded-lg p-4 cursor-pointer transition ${
+                selected.includes(q.id)
+                  ? "border-[#6C4DF6] bg-[#FAFAFF]"
+                  : "border-[#E8E8ED] hover:border-[#CCC]"
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={selected.includes(q.id)}
+                onChange={() => onToggle(q.id)}
+                className="mt-1 accent-[#6C4DF6]"
+              />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-[#222]">{q.text}</p>
+                <div className="flex gap-2 mt-2">
+                  <span className="text-xs px-2 py-0.5 bg-[#F0F0F0] rounded text-[#666]">
+                    {q.type}
+                  </span>
+                  <span className="text-xs px-2 py-0.5 bg-[#F4F1FF] text-[#6C4DF6] rounded">
+                    {q.skill}
+                  </span>
+                  <span className="text-xs px-2 py-0.5 bg-[#FFF4DC] text-[#C78100] rounded">
+                    {q.difficulty}
+                  </span>
+                  {customQuestions.find((cq) => cq.id === q.id) && (
+                    <span className="text-xs px-2 py-0.5 bg-[#E8F4E8] text-[#059669] rounded">
+                      Custom
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-            {selected.includes(q.id) && (
-              <GripVertical size={16} className="text-[#CCC] shrink-0 mt-1" />
-            )}
-          </label>
-        ))}
-      </div>
+              {selected.includes(q.id) && (
+                <GripVertical size={16} className="text-[#CCC] shrink-0 mt-1" />
+              )}
+            </label>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -464,11 +711,14 @@ function StepSettings({
 function StepReview({
   form,
   selectedQuestions,
+  customQuestions,
 }: {
   form: AssessmentForm;
   selectedQuestions: string[];
+  customQuestions: Question[];
 }) {
-  const selected = mockBankQuestions.filter((q) =>
+  
+  const selected = allQuestions.filter((q) =>
     selectedQuestions.includes(q.id)
   );
 
@@ -511,7 +761,7 @@ function StepReview({
         </div>
       </div>
 
-      {selected.length > 0 && (
+      {selected.length > 0 ? (
         <div>
           <h4 className="text-sm font-semibold text-[#222] mb-3">
             Selected Questions ({selected.length})
@@ -526,9 +776,19 @@ function StepReview({
                   {i + 1}
                 </span>
                 <p className="text-sm text-[#444]">{q.text}</p>
+                {customQuestions.find((cq) => cq.id === q.id) && (
+                  <span className="text-xs px-2 py-0.5 bg-[#E8F4E8] text-[#059669] rounded">
+                    Custom
+                  </span>
+                )}
               </div>
             ))}
           </div>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-dashed border-[#E8E8ED] p-8 text-center">
+          <p className="text-sm text-[#666]">No questions selected.</p>
+          <p className="text-xs text-[#999] mt-1">Go back to Step 2 to add and select questions.</p>
         </div>
       )}
     </div>
@@ -601,3 +861,13 @@ function SummaryItem({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+

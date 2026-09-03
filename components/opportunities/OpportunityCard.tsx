@@ -12,17 +12,17 @@ import {
 export type Opportunity = {
   id: string;
   title: string;
-  company: string;
+  company?: string;
   type: string;
   location: string;
-  workMode: string;
+  workMode?: string;
   description: string;
-  skills: string[];
-  experience: string;
+  skills?: string[];
+  experience?: string;
   deadline: string;
   status: string;
-  salary: string;
-  match: number;
+  salary?: string;
+  match?: number;
 };
 
 export default function OpportunityCard({
@@ -49,7 +49,7 @@ export default function OpportunityCard({
 
         <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
           <Building2 size={15} />
-          {opportunity.company}
+          {opportunity.company || "Organization"}
         </div>
       </div>
 
@@ -58,7 +58,7 @@ export default function OpportunityCard({
       </p>
 
       <div className="mt-5 flex flex-wrap gap-2">
-        {opportunity.skills.map((skill) => (
+        {(opportunity.skills || []).map((skill) => (
           <span
             key={skill}
             className="rounded-lg bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700"
@@ -76,7 +76,7 @@ export default function OpportunityCard({
 
         <div className="flex items-center gap-2 text-xs text-slate-500">
           <Clock3 size={15} />
-          {opportunity.workMode}
+          {opportunity.workMode || (opportunity as { is_remote?: boolean }).is_remote ? "Remote" : "On-site"}
         </div>
 
         <div className="text-xs text-slate-500">
@@ -88,7 +88,7 @@ export default function OpportunityCard({
         <div className="text-xs text-slate-500">
           Match:{" "}
           <span className="font-semibold text-emerald-600">
-            {opportunity.match}%
+            {opportunity.match != null ? `${opportunity.match}%` : "—"}
           </span>
         </div>
       </div>
